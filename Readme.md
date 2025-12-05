@@ -26,7 +26,7 @@ This project is a secure Two-Factor Authentication (2FA) microservice that gener
 ---
 
 ## Author
-**Pujitha Kotha (Pikku)**  
+**Pujita Kotha**
 GitHub: [https://github.com/Pujitha-png](https://github.com/Pujitha-png)
 
 ---
