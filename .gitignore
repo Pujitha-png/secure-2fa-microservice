@@ -1,0 +1,17 @@
+
+# Sensitive files
+encrypted_seed.txt
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Environment files
+.env
+
+# IDE / Editor folders
+.vscode/
+.idea/
+
+# Others
+*.log
