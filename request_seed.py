@@ -1,51 +1,45 @@
-
-import os
 import json
 import requests
+from typing import Optional
 
-# -------------------- CHANGE ONLY THESE --------------------
-STUDENT_ID = "23MH1A1228"
-GITHUB_REPO_URL = "https://github.com/Pujitha-png/secure-2fa-microservice.git"
-API_URL = "https://eajeyq4r3zljoq4rpovy2nthda0vtjqf.lambda-url.ap-south-1.on.aws/"
-STUDENT_PUBLIC_KEY_PATH = "student_public.pem"
-# -------------------------------------------------------------
+def read_public_key_pem(pem_path: str) -> str:
+    with open(pem_path, "r", encoding="utf-8") as f:
+        pem = f.read().strip()
+    if not (pem.startswith("-----BEGIN") and "-----END" in pem):
+        raise ValueError("Public key PEM file doesn't contain expected BEGIN/END markers.")
+    return pem
 
-def request_seed():
-    # Ensure data folder exists
-    if not os.path.exists("data"):
-        os.makedirs("data")
-
-    # Read your public key
-    with open(STUDENT_PUBLIC_KEY_PATH, "r") as f:
-        public_key = f.read().strip()
-
+def request_seed(student_id: str, github_repo_url: str, api_url: str,
+                 public_key_pem_path: str = "student_public.pem",
+                 timeout_seconds: int = 10) -> Optional[str]:
+    pubkey_pem = read_public_key_pem(public_key_pem_path)
     payload = {
-        "student_id": STUDENT_ID,
-        "github_repo_url": GITHUB_REPO_URL,
-        "public_key": public_key
+        "student_id": student_id,
+        "github_repo_url": github_repo_url,
+        "public_key": pubkey_pem
     }
-
     headers = {"Content-Type": "application/json"}
-
     try:
-        response = requests.post(API_URL, json=payload, headers=headers, timeout=10)
-        result = response.json()
-
-        if "encrypted_seed" not in result:
-            print("Error from API:", result)
-            return
-
-        encrypted_seed = result["encrypted_seed"]
-
-        # Save inside data/encrypted_seed.txt
-        with open("data/encrypted_seed.txt", "w") as f:
-            f.write(encrypted_seed)
-
-        print("Encrypted seed saved to data/encrypted_seed.txt")
-
-    except Exception as e:
-        print("Request failed:", e)
-
+        resp = requests.post(api_url, json=payload, headers=headers, timeout=timeout_seconds)
+    except requests.RequestException as e:
+        raise RuntimeError(f"Network/timeout error while calling Instructor API: {e}")
+    try:
+        data = resp.json()
+    except ValueError:
+        raise RuntimeError(f"Non-JSON response from API (status {resp.status_code}): {resp.text}")
+    if resp.status_code != 200 or data.get("status") != "success":
+        raise RuntimeError(f"API error: status_code={resp.status_code}, body={json.dumps(data)}")
+    encrypted_seed = data.get("encrypted_seed") or data.get("encrypted seed") or data.get("encryptedSeed")
+    if not encrypted_seed:
+        raise RuntimeError(f"API success but missing encrypted_seed field in response: {json.dumps(data)}")
+    with open("encrypted_seed.txt", "w", encoding="utf-8") as f:
+        f.write(encrypted_seed)
+    print("Encrypted seed saved to encrypted_seed.txt (do NOT commit this file).")
+    return encrypted_seed
 
 if __name__ == "__main__":
-    request_seed()
+    API_URL = "https://eajeyq4r3zljoq4rpovy2nthda0vtjqf.lambda-url.ap-south-1.on.aws"
+    STUDENT_ID = "<YOUR_STUDENT_ID>"
+    GITHUB_REPO_URL = "https://github.com/yourusername/your-repo-name"
+    seed = request_seed(STUDENT_ID, GITHUB_REPO_URL, API_URL, public_key_pem_path="student_public.pem")
+    print("Encrypted seed (truncated):", seed[:80] + "..." if seed else "None")
